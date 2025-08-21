@@ -19,21 +19,9 @@ Program ini menggunakan algoritma NEAT untuk melatih jaringan saraf agar bisa be
 4.  **Evolusi**: Setelah semua burung mati, algoritma NEAT akan memilih burung-burung dengan skor tertinggi. "Otak" mereka akan direproduksi (dikombinasikan dan sedikit dimutasi) untuk menciptakan generasi baru yang mewarisi sifat-sifat unggul dari orang tuanya.
 5.  **Pengulangan**: Proses ini diulang untuk banyak generasi. Seiring waktu, Anda akan melihat populasi burung secara kolektif menjadi semakin pintar dan mahir dalam menghindari pipa.
 
-## 🖼️ Aset yang Dibutuhkan
-
-Versi baru ini menggunakan file gambar untuk tampilan visual. Kode ini dirancang untuk memuat aset dari folder `assets/`.
-
-**PENTING:** Anda harus membuat folder `assets` di direktori utama proyek dan mengisinya dengan file-file gambar berikut:
-- `bg.png` (Gambar latar belakang)
-- `base.png` (Gambar lantai yang bergerak)
-- `pipe.png` (Gambar pipa)
-- `bird1.png` (Gambar burung dengan sayap di atas)
-- `bird2.png` (Gambar burung dengan sayap di tengah)
-- `bird3.png` (Gambar burung dengan sayap di bawah)
-
-Program akan menampilkan pesan error jika file-file ini tidak dapat ditemukan. Anda bisa menggunakan aset dari repositori referensi yang Anda berikan atau menggunakan aset lain dengan nama file yang sama.
-
 ## 🛠️ Cara Menjalankan Program
+
+Proyek ini sepenuhnya mandiri dan tidak memerlukan file eksternal.
 
 Untuk menjalankan proyek ini di komputer Anda, ikuti langkah-langkah berikut:
 
@@ -45,16 +33,13 @@ Untuk menjalankan proyek ini di komputer Anda, ikuti langkah-langkah berikut:
     cd <NAMA_FOLDER_REPOSITORI>
     ```
 
-3.  **Siapkan Aset:**
-    Buat folder `assets` dan isi dengan file-file gambar yang disebutkan di atas.
-
-4.  **Instal dependensi yang diperlukan:**
+3.  **Instal dependensi yang diperlukan:**
     Program ini membutuhkan `pygame` dan `neat-python`. Anda bisa menginstalnya menggunakan pip.
     ```bash
     pip install pygame neat-python
     ```
 
-5.  **Jalankan program:**
+4.  **Jalankan program:**
     Setelah instalasi selesai, cukup jalankan file `flappy_ai.py`.
     ```bash
     python3 flappy_ai.py

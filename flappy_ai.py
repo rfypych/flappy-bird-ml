@@ -3,49 +3,38 @@ import neat
 import time
 import os
 import random
+import math
 
 pygame.font.init()
 
-# Ukuran jendela baru
+# Konstanta
 WIN_WIDTH = 400
 WIN_HEIGHT = 600
-FLOOR = 530 # Posisi y untuk lantai
+FLOOR = 530
 STAT_FONT = pygame.font.SysFont("comicsans", 40)
-END_FONT = pygame.font.SysFont("comicsans", 70)
-DRAW_LINES = True
 
-# --- Memuat Aset Gambar ---
-# Saya akan membungkus ini dalam try-except untuk menangani jika file tidak ada
-try:
-    BIRD_IMGS = [
-        pygame.transform.scale2x(pygame.image.load(os.path.join("assets", "bird" + str(x) + ".png")))
-        for x in range(1, 4)
-    ]
-    PIPE_IMG = pygame.transform.scale2x(pygame.image.load(os.path.join("assets", "pipe.png")).convert_alpha())
-    BASE_IMG = pygame.transform.scale2x(pygame.image.load(os.path.join("assets", "base.png")).convert_alpha())
-    BG_IMG = pygame.transform.scale(pygame.image.load(os.path.join("assets", "bg.png")).convert_alpha(), (WIN_WIDTH, WIN_HEIGHT))
-    ASSETS_LOADED = True
-except (pygame.error, FileNotFoundError) as e:
-    ASSETS_LOADED = False
-    print("Gagal memuat aset gambar! Pastikan file gambar ada di folder 'assets'.")
-    print("Daftar file yang dibutuhkan: bird1.png, bird2.png, bird3.png, pipe.png, base.png, bg.png")
-    print(f"Error: {e}")
-# -------------------------
+# Warna Prosedural
+SKY_BLUE_TOP = (135, 206, 250)
+SKY_BLUE_BOTTOM = (176, 224, 230)
+BIRD_YELLOW = (255, 223, 0)
+BIRD_ORANGE = (255, 165, 0)
+BIRD_WHITE = (255, 255, 255)
+BIRD_BLACK = (0, 0, 0)
+PIPE_GREEN = (46, 139, 87)
+PIPE_GREEN_DARK = (34, 107, 67)
+BASE_BROWN = (139, 69, 19)
+BASE_GREEN = (60, 179, 113)
 
 GEN = 0
 MAX_FITNESS = 0
 BEST_SCORE = 0
 
-# --- Kelas yang Dirombak Menggunakan pygame.sprite.Sprite ---
-
-class Bird(pygame.sprite.Sprite):
-    IMGS = BIRD_IMGS if ASSETS_LOADED else []
+class Bird:
     MAX_ROTATION = 25
     ROT_VEL = 20
     ANIMATION_TIME = 5
 
     def __init__(self, x, y):
-        super().__init__()
         self.x = x
         self.y = y
         self.tilt = 0
@@ -53,9 +42,9 @@ class Bird(pygame.sprite.Sprite):
         self.vel = 0
         self.height = self.y
         self.img_count = 0
-        self.image = self.IMGS[0] if ASSETS_LOADED else pygame.Surface((30,30))
-        if not ASSETS_LOADED: self.image.fill((255,255,0))
-        self.rect = self.image.get_rect(topleft=(x, y))
+        self.width = 34  # Perkiraan ukuran untuk surface
+        self.height = 24 # Perkiraan ukuran untuk surface
+        self.surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
 
     def jump(self):
         self.vel = -10.5
@@ -64,12 +53,12 @@ class Bird(pygame.sprite.Sprite):
 
     def move(self):
         self.tick_count += 1
-        displacement = self.vel * (self.tick_count) + 0.5 * (3) * (self.tick_count) ** 2
+        displacement = self.vel * self.tick_count + 1.5 * self.tick_count**2
         if displacement >= 16:
-            displacement = (displacement / abs(displacement)) * 16
+            displacement = 16
         if displacement < 0:
             displacement -= 2
-        self.y = self.y + displacement
+        self.y += displacement
 
         if displacement < 0 or self.y < self.height + 50:
             if self.tilt < self.MAX_ROTATION:
@@ -78,90 +67,85 @@ class Bird(pygame.sprite.Sprite):
             if self.tilt > -90:
                 self.tilt -= self.ROT_VEL
 
-        self.rect.y = self.y
-
     def draw(self, win):
         self.img_count += 1
-        if self.img_count <= self.ANIMATION_TIME:
-            self.image = self.IMGS[0] if ASSETS_LOADED else self.image
-        elif self.img_count <= self.ANIMATION_TIME * 2:
-            self.image = self.IMGS[1] if ASSETS_LOADED else self.image
-        elif self.img_count <= self.ANIMATION_TIME * 3:
-            self.image = self.IMGS[2] if ASSETS_LOADED else self.image
-        elif self.img_count <= self.ANIMATION_TIME * 4:
-            self.image = self.IMGS[1] if ASSETS_LOADED else self.image
-        elif self.img_count == self.ANIMATION_TIME * 4 + 1:
-            self.image = self.IMGS[0] if ASSETS_LOADED else self.image
-            self.img_count = 0
 
-        if self.tilt <= -80:
-            self.image = self.IMGS[1] if ASSETS_LOADED else self.image
-            self.img_count = self.ANIMATION_TIME * 2
+        # Menggambar burung ke surface internal
+        self.surface.fill((0,0,0,0)) # Latar transparan
 
-        rotated_image = pygame.transform.rotate(self.image, self.tilt)
-        new_rect = rotated_image.get_rect(center=self.image.get_rect(topleft=(self.x, self.y)).center)
-        win.blit(rotated_image, new_rect.topleft)
+        # Badan
+        pygame.draw.circle(self.surface, BIRD_YELLOW, (self.width // 2, self.height // 2), 12)
+        # Mata
+        pygame.draw.circle(self.surface, BIRD_WHITE, (22, 10), 4)
+        pygame.draw.circle(self.surface, BIRD_BLACK, (22, 10), 2)
+        # Paruh
+        pygame.draw.polygon(self.surface, BIRD_ORANGE, [(26, 12), (32, 14), (26, 16)])
+
+        # Animasi Sayap
+        flap_cycle = self.img_count % (self.ANIMATION_TIME * 2)
+        if flap_cycle < self.ANIMATION_TIME: # Sayap ke atas
+            wing_points = [(14, 12), (8, 6), (20, 6)]
+        else: # Sayap ke bawah
+            wing_points = [(14, 12), (8, 18), (20, 18)]
+        pygame.draw.polygon(self.surface, BIRD_YELLOW, wing_points)
+        pygame.draw.line(self.surface, BIRD_BLACK, (14,12), (8,6) if flap_cycle < self.ANIMATION_TIME else (8,18), 1)
+
+        # Rotasi
+        rotated_surface = pygame.transform.rotate(self.surface, self.tilt)
+        new_rect = rotated_surface.get_rect(center=self.surface.get_rect(topleft=(self.x, self.y)).center)
+        win.blit(rotated_surface, new_rect.topleft)
 
     def get_mask(self):
-        return pygame.mask.from_surface(self.image)
+        # Mask harus dibuat ulang setiap frame karena rotasi
+        temp_surface = pygame.Surface((WIN_WIDTH, WIN_HEIGHT), pygame.SRCALPHA)
+        self.draw(temp_surface) # Gambar burung ke surface sementara di posisinya
+        return pygame.mask.from_surface(temp_surface)
 
 
-class Pipe(pygame.sprite.Sprite):
+class Pipe:
     GAP = 200
     VEL = 5
 
     def __init__(self, x):
-        super().__init__()
         self.x = x
         self.height = 0
         self.top = 0
         self.bottom = 0
-
-        self.PIPE_TOP = pygame.transform.flip(PIPE_IMG, False, True) if ASSETS_LOADED else pygame.Surface((50,300))
-        self.PIPE_BOTTOM = PIPE_IMG if ASSETS_LOADED else pygame.Surface((50,300))
-        if not ASSETS_LOADED:
-            self.PIPE_TOP.fill((0,255,0))
-            self.PIPE_BOTTOM.fill((0,255,0))
-
+        self.width = 60 # Lebar pipa
+        self.cap_height = 25 # Tinggi cincin
         self.passed = False
         self.set_height()
 
-        self.rect_top = self.PIPE_TOP.get_rect(topleft=(self.x, self.top))
-        self.rect_bottom = self.PIPE_BOTTOM.get_rect(topleft=(self.x, self.bottom))
-
     def set_height(self):
-        self.height = random.randrange(50, 350)
-        self.top = self.height - self.PIPE_TOP.get_height()
+        self.height = random.randrange(80, 320)
+        self.top = self.height
         self.bottom = self.height + self.GAP
 
     def move(self):
         self.x -= self.VEL
-        self.rect_top.x = self.x
-        self.rect_bottom.x = self.x
 
     def draw(self, win):
-        win.blit(self.PIPE_TOP, self.rect_top.topleft)
-        win.blit(self.PIPE_BOTTOM, self.rect_bottom.topleft)
+        # Pipa Atas
+        pygame.draw.rect(win, PIPE_GREEN, (self.x, 0, self.width, self.top))
+        pygame.draw.rect(win, PIPE_GREEN_DARK, (self.x - 5, self.top - self.cap_height, self.width + 10, self.cap_height))
+        # Pipa Bawah
+        pygame.draw.rect(win, PIPE_GREEN, (self.x, self.bottom, self.width, WIN_HEIGHT - self.bottom))
+        pygame.draw.rect(win, PIPE_GREEN_DARK, (self.x - 5, self.bottom, self.width + 10, self.cap_height))
 
-    def collide(self, bird, win):
-        bird_mask = bird.get_mask()
-        top_mask = pygame.mask.from_surface(self.PIPE_TOP)
-        bottom_mask = pygame.mask.from_surface(self.PIPE_BOTTOM)
-        top_offset = (self.x - bird.x, self.top - round(bird.y))
-        bottom_offset = (self.x - bird.x, self.bottom - round(bird.y))
+    def collide(self, bird):
+        # Deteksi tabrakan sederhana berbasis persegi panjang (cukup untuk ini)
+        bird_rect = pygame.Rect(bird.x, bird.y, bird.width, bird.height)
+        top_pipe_rect = pygame.Rect(self.x, 0, self.width, self.top)
+        bottom_pipe_rect = pygame.Rect(self.x, self.bottom, self.width, WIN_HEIGHT - self.bottom)
 
-        b_point = bird_mask.overlap(bottom_mask, bottom_offset)
-        t_point = bird_mask.overlap(top_mask, top_offset)
-
-        if b_point or t_point:
+        if bird_rect.colliderect(top_pipe_rect) or bird_rect.colliderect(bottom_pipe_rect):
             return True
         return False
 
 
 class Base:
     VEL = 5
-    WIDTH = BASE_IMG.get_width() if ASSETS_LOADED else WIN_WIDTH
-    IMG = BASE_IMG if ASSETS_LOADED else None
+    WIDTH = WIN_WIDTH
 
     def __init__(self, y):
         self.y = y
@@ -177,17 +161,21 @@ class Base:
             self.x2 = self.x1 + self.WIDTH
 
     def draw(self, win):
-        if ASSETS_LOADED:
-            win.blit(self.IMG, (self.x1, self.y))
-            win.blit(self.IMG, (self.x2, self.y))
-        else:
-            pygame.draw.rect(win, (200,150,100), (0, FLOOR, WIN_WIDTH, WIN_HEIGHT - FLOOR))
+        pygame.draw.rect(win, BASE_BROWN, (self.x1, self.y, self.WIDTH, WIN_HEIGHT - self.y))
+        pygame.draw.rect(win, BASE_BROWN, (self.x2, self.y, self.WIDTH, WIN_HEIGHT - self.y))
+        # Tekstur rumput
+        for i in range(0, WIN_WIDTH, 20):
+            pygame.draw.line(win, BASE_GREEN, (self.x1 + i, self.y), (self.x1 + i + 5, self.y + 10), 3)
+            pygame.draw.line(win, BASE_GREEN, (self.x2 + i, self.y), (self.x2 + i + 5, self.y + 10), 3)
+
 
 def draw_window(win, birds, pipes, base, score, gen, fitness, species_count):
-    if ASSETS_LOADED:
-        win.blit(BG_IMG, (0, 0))
-    else:
-        win.fill((100, 149, 237))  # Fallback to blue if no assets
+    # Latar gradien
+    for y in range(WIN_HEIGHT):
+        color_r = SKY_BLUE_TOP[0] + (SKY_BLUE_BOTTOM[0] - SKY_BLUE_TOP[0]) * y / WIN_HEIGHT
+        color_g = SKY_BLUE_TOP[1] + (SKY_BLUE_BOTTOM[1] - SKY_BLUE_TOP[1]) * y / WIN_HEIGHT
+        color_b = SKY_BLUE_TOP[2] + (SKY_BLUE_BOTTOM[2] - SKY_BLUE_TOP[2]) * y / WIN_HEIGHT
+        pygame.draw.line(win, (color_r, color_g, color_b), (0, y), (WIN_WIDTH, y))
 
     for pipe in pipes:
         pipe.draw(win)
@@ -196,35 +184,32 @@ def draw_window(win, birds, pipes, base, score, gen, fitness, species_count):
     for bird in birds:
         bird.draw(win)
 
-    # Statistik
+    # Statistik (dengan latar belakang semi-transparan)
+    stat_bg = pygame.Surface((WIN_WIDTH, 210), pygame.SRCALPHA)
+    stat_bg.fill((0,0,0, 100))
+    win.blit(stat_bg, (0,0))
+
     score_label = STAT_FONT.render("Score: " + str(score),1,(255,255,255))
     win.blit(score_label, (10, 10))
-
     gen_label = STAT_FONT.render("Gen: " + str(gen),1,(255,255,255))
     win.blit(gen_label, (10, 50))
-
     alive_label = STAT_FONT.render("Alive: " + str(len(birds)),1,(255,255,255))
     win.blit(alive_label, (10, 90))
-
-    fitness_label = STAT_FONT.render(f"Max Fitness: {fitness:.2f}", 1, (255, 255, 255))
+    fitness_label = STAT_FONT.render(f"Max Fitness: {fitness:.1f}", 1, (255, 255, 255))
     win.blit(fitness_label, (10, 130))
-
     species_label = STAT_FONT.render(f"Species: {species_count}", 1, (255, 255, 255))
     win.blit(species_label, (10, 170))
-
     best_score_label = STAT_FONT.render(f"Best Score: {BEST_SCORE}", 1, (255, 255, 255))
     win.blit(best_score_label, (WIN_WIDTH - best_score_label.get_width() - 10, 10))
 
     pygame.display.update()
 
 
-def eval_genomes(genomes, config, population): # Terima objek populasi
+def eval_genomes(genomes, config, population):
     global GEN, MAX_FITNESS, BEST_SCORE
     GEN += 1
 
-    nets = []
-    birds = []
-    ge = []
+    nets, ge, birds = [], [], []
 
     for genome_id, genome in genomes:
         genome.fitness = 0
@@ -250,7 +235,7 @@ def eval_genomes(genomes, config, population): # Terima objek populasi
 
         pipe_ind = 0
         if len(birds) > 0:
-            if len(pipes) > 1 and birds[0].x > pipes[0].x + pipes[0].PIPE_TOP.get_width():
+            if len(pipes) > 1 and birds[0].x > pipes[0].x + pipes[0].width:
                 pipe_ind = 1
 
         for x, bird in enumerate(birds):
@@ -262,28 +247,25 @@ def eval_genomes(genomes, config, population): # Terima objek populasi
 
         base.move()
 
-        rem = []
-        add_pipe = False
+        rem, add_pipe = [], False
         for pipe in pipes:
             pipe.move()
             for bird in birds:
-                if pipe.collide(bird, win):
+                if pipe.collide(bird):
                     ge[birds.index(bird)].fitness -= 1
                     nets.pop(birds.index(bird))
                     ge.pop(birds.index(bird))
                     birds.pop(birds.index(bird))
 
-            if pipe.x + pipe.PIPE_TOP.get_width() < 0:
+            if pipe.x + pipe.width < 0:
                 rem.append(pipe)
-
             if not pipe.passed and pipe.x < bird.x:
                 pipe.passed = True
                 add_pipe = True
 
         if add_pipe:
             score += 1
-            if score > BEST_SCORE:
-                BEST_SCORE = score
+            if score > BEST_SCORE: BEST_SCORE = score
             for genome in ge:
                 genome.fitness += 5
             pipes.append(Pipe(WIN_WIDTH))
@@ -292,18 +274,16 @@ def eval_genomes(genomes, config, population): # Terima objek populasi
             pipes.remove(r)
 
         for x, bird in enumerate(birds):
-            if bird.y + bird.image.get_height() - 10 >= FLOOR or bird.y < -50:
+            if bird.y + bird.height >= FLOOR or bird.y < -50:
                 nets.pop(birds.index(bird))
                 ge.pop(birds.index(bird))
                 birds.pop(birds.index(bird))
 
         current_max_fitness = 0
-        for g in ge:
-            if g.fitness > current_max_fitness:
-                current_max_fitness = g.fitness
+        if ge:
+            current_max_fitness = max(g.fitness for g in ge)
         MAX_FITNESS = current_max_fitness
 
-        # Dapatkan jumlah spesies dari objek populasi
         species_count = len(population.species.species)
         draw_window(win, birds, pipes, base, score, GEN, MAX_FITNESS, species_count)
 
@@ -312,20 +292,14 @@ def run(config_file):
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
-
     p = neat.Population(config)
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-
-    # Gunakan lambda untuk meneruskan objek populasi 'p' ke eval_genomes
     winner = p.run(lambda genomes, config: eval_genomes(genomes, config, p), 50)
     print('\nBest genome:\n{!s}'.format(winner))
 
 if __name__ == '__main__':
-    if not ASSETS_LOADED:
-        print("\nExiting due to missing assets.")
-    else:
-        local_dir = os.path.dirname(__file__)
-        config_path = os.path.join(local_dir, 'config-feedforward.txt')
-        run(config_path)
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config-feedforward.txt')
+    run(config_path)
